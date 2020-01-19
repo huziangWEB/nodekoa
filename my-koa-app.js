@@ -4,6 +4,10 @@ const Router = require('koa-router')
 const router = new Router()
 const mongoose = require('mongoose')
 const bodyparser = require('koa-bodyparser')
+const admZip = require('adm-zip')
+const zip = new admZip('test.docx')
+var xmlreader = require("xmlreader");
+var fs = require("fs");
 mongoose.connect('mongodb://127.0.0.1/users', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -26,6 +30,49 @@ let personSchema = new mongoose.Schema({
     versionKey: false
   } //不需要数据中'__v'字段
 )
+
+//将该docx解压到指定文件夹result下
+zip.extractAllTo("./result", /*overwrite*/true);
+let buf = fs.readFileSync("./result/word/document.xml", 'utf8');
+xmlreader.read(buf, function(errors, res){
+  if(null !== errors ){
+    console.log(errors)
+    return;
+  }
+  var textI = res['w:document']['w:body']['w:p'].array;
+  var html='';
+  var title ='';
+  var xxA='';
+  var xxB='';
+  var xxC='';
+  var xxD='';
+  var answer='';
+  for(var i =0;i<textI.length;i++){  
+    if(textI[i]['w:r'] !== undefined){
+      if(textI[i]['w:r'].array !== undefined) {
+        console.log(i+':'+textI[i]['w:r'].array)
+        var textJ = textI[i]['w:r'].array;
+        for(var j =0;j<textJ.length;j++) { 
+          if(textJ[j]['w:t'] !== undefined){
+            html+= textJ[j]['w:t'].text()
+          }      
+        }
+      } else {
+        var textK = textI[i]['w:r']['w:t'];
+          if(textK !== undefined){
+            html+= textK.text()
+          }      
+      }
+    }
+      
+  }
+  console.log('html:'+html)
+  // console.log( res.text())
+  // console.log( res['w:document']['w:body']['w:p'].array[13]['w:r']['w:t'].text());
+  // console.log( response.response.text());
+});
+
+
 let Person = mongoose.model('user', personSchema)
 router.post('/users/addPerson', async function (ctx) {
   const person = new Person(ctx.request.body)
@@ -38,6 +85,7 @@ router.post('/users/addPerson', async function (ctx) {
     msg = '添加成功'
   } catch (e) {
     code = -1
+    msg = e
   }
   ctx.body = {
     code: code,
